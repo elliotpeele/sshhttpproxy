@@ -21,6 +21,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -45,7 +46,14 @@ HTTP proxy protocol`,
 		debug, _ := cmd.InheritedFlags().GetBool("debug")
 		setupLogging(os.Stderr, debug)
 		logger.Debugf("debug logging enabled")
+		ctx, cancel := context.WithCancel(context.Background())
+		go setupSignalHandler(ctx, cancel)
+		defer cancel()
 		remotes, err := cmd.PersistentFlags().GetStringSlice("remote")
+		if err != nil {
+			return err
+		}
+		localPort, err := cmd.PersistentFlags().GetString("local")
 		if err != nil {
 			return err
 		}
@@ -53,6 +61,7 @@ HTTP proxy protocol`,
 		if err != nil {
 			return err
 		}
+		p.WithContext(ctx)
 		logger.Infof("connecting to %s@%s",
 			viper.GetString("sshproxy.user"),
 			viper.GetString("sshproxy.remote"))
@@ -60,15 +69,18 @@ HTTP proxy protocol`,
 			return err
 		}
 		for _, remote := range remotes {
-			local, err := p.Forward(remote)
+			local, err := p.Forward(remote, localPort)
 			if err != nil {
 				return err
 			}
 			logger.Infof("%s -> %s", remote, local)
 		}
 		// TODO: wait for ctl-c and shutdown
-		for {
+		if ctx.Err() == context.Canceled {
+			fmt.Fprintln(os.Stderr, "Mirror interrupted by signal")
+			os.Exit(1)
 		}
+		select {}
 		return nil
 	},
 }
@@ -87,6 +99,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.sshhttpproxy.yaml)")
 	rootCmd.Flags().BoolP("debug", "d", false, "enable debug level logging")
 	rootCmd.PersistentFlags().StringSliceP("remote", "r", nil, "remote server and port")
+	rootCmd.PersistentFlags().String("local", "0", "set local port")
 }
 
 // initConfig reads in config file and ENV variables if set.
