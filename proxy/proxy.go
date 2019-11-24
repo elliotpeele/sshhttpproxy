@@ -99,7 +99,6 @@ func (p *SSHProxy) Forward(remote, localPort string) (string, error) {
 				p.wg.Done()
 				return
 			default:
-				break
 			}
 		}
 	}()
