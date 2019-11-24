@@ -98,6 +98,8 @@ func (p *SSHProxy) Forward(remote, localPort string) (string, error) {
 				}
 				p.wg.Done()
 				return
+			default:
+				break
 			}
 		}
 	}()
@@ -158,8 +160,8 @@ func (p *SSHProxy) handleClient(local net.Conn, remoteConnect string) {
 	}()
 	p.wg.Add(1)
 	go func() {
-		logger.Debugf("shutting down %s", remoteConnect)
 		wg.Wait()
+		logger.Debugf("shutting down %s", remoteConnect)
 		if err := local.Close(); err != nil {
 			logger.Errorf("error closing local connection: %s", err)
 		}
